@@ -14,6 +14,7 @@
 
 import random
 import string
+import time
 
 from novaclient import exceptions as nova_exceptions
 from oslo_config import cfg
@@ -66,6 +67,23 @@ def _get_image_uuid(client, image_id, image_tag, image_owner):
     return _extract_amp_image_id_by_tag(client, image_tag, image_owner)
 
 
+def _create_cinder_volume(client, image_id,
+                          vol_size, availability_zone):
+    """Create cinder volume
+    :param image_id: ID of amphorae image
+    :param vol_size: Size of volume
+    :param availability_zone: Avaialability Zone of Cinder
+    :return volume id
+    """
+    vol = client.volumes.create(size=vol_size,
+                                availability_zone=availability_zone,
+                                imageRef=image_id)
+    while True:
+        if client.volumes.get(vol.id).status == 'available':
+            vol.bootable = True
+            return vol.id
+        time.sleep(5)
+
 class VirtualMachineManager(compute_base.ComputeBase):
     '''Compute implementation of virtual machines via nova.'''
 
@@ -85,6 +103,15 @@ class VirtualMachineManager(compute_base.ComputeBase):
             endpoint_type=CONF.glance.endpoint_type,
             insecure=CONF.glance.insecure,
             cacert=CONF.glance.ca_certificates_file)
+        if CONF.nova.use_cinder:
+            self._cinder_client = clients.CinderAuth.get_cinder_client(
+                service_name=CONF.cinder.service_name,
+                endpoint=CONF.cinder.endpoint,
+                region=CONF.cinder.region_name,
+                endpoint_type=CONF.cinder.endpoint_type,
+                insecure=CONF.cinder.insecure,
+                cacert=CONF.cinder.ca_certificates_file
+            )
         self.manager = self._nova_client.servers
         self.server_groups = self._nova_client.server_groups
 
@@ -143,8 +170,20 @@ class VirtualMachineManager(compute_base.ComputeBase):
                      for i in range(CONF.nova.random_amphora_name_length - 1)]
                 ))
 
+            block_device_mapping = {}
+            if CONF.nova.use_cinder:
+                # creating volume
+                LOG.debug('Creating volume for amphorae')
+                cinder_id = _create_cinder_volume(
+                    self._cinder_client, image_id,
+                    CONF.cinder.volume_size, CONF.cinder.availability_zone
+                )
+                # If use volume based, does not require image ID anymore
+                image_id = ""
+                block_device_mapping = {'vda': '%s:::true' % cinder_id}
             amphora = self.manager.create(
                 name=name, image=image_id, flavor=amphora_flavor,
+                block_device_mapping=block_device_mapping,
                 key_name=key_name, security_groups=sec_groups,
                 nics=nics,
                 files=config_drive_files,
