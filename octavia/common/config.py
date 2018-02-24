@@ -486,6 +486,29 @@ nova_opts = [
                       '"amphora-{UUID}".')),
     cfg.StrOpt('availability_zone', default=None,
                help=_('Availability zone to use for creating Amphorae')),
+    cfg.StrOpt('use_cinder', default=False,
+               help=_('If want to use volume based for Amphorae')),
+]
+
+cinder_opts = [
+    cfg.StrOpt('service_name',
+               help=_('The name of the cinder service in the keystone catalog')),
+   cfg.StrOpt('endpoint', help=_('A new endpoint to override the endpoint '
+                                  'in the keystone catalog.')),
+    cfg.StrOpt('region_name',
+               help=_('Region in Identity service catalog to use for '
+                      'communication with the OpenStack services.')),
+    cfg.StrOpt('endpoint_type', default='publicURL',
+               help=_('Endpoint interface in identity service to use')),
+    cfg.StrOpt('ca_certificates_file',
+               help=_('CA certificates file path')),
+    cfg.BoolOpt('insecure',
+                default=False,
+                help=_('Disable certificate validation on SSL connections')),
+    cfg.StrOpt('availability_zone', default=None,
+               help=_('Availability zone to use for creating Amphorae')),
+    cfg.IntOpt('volume_size', default=16,
+               help=_('Size of volume for Amphorae instance')),
 ]
 neutron_opts = [
     cfg.StrOpt('service_name',
@@ -558,6 +581,7 @@ cfg.CONF.register_cli_opts(core_cli_opts)
 cfg.CONF.register_opts(certificate_opts, group='certificates')
 cfg.CONF.register_cli_opts(healthmanager_opts, group='health_manager')
 cfg.CONF.register_opts(nova_opts, group='nova')
+cfg.CONF.register_opts(cinder_opts, group='cinder')
 cfg.CONF.register_opts(glance_opts, group='glance')
 cfg.CONF.register_opts(neutron_opts, group='neutron')
 cfg.CONF.register_opts(quota_opts, group='quotas')
